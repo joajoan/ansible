@@ -1,0 +1,4 @@
+- name: Setup System
+  hosts: local
+  roles:
+    - system

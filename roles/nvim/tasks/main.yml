@@ -1,0 +1,38 @@
+- name: Install Software
+  become: yes
+  block:
+
+    - name: Pull Stable
+      ansible.builtin.git:
+        repo: https://github.com/neovim/neovim.git
+        dest: /opt/neovim
+        update: yes
+        version: stable
+      register: neovim_repository
+
+    - name: Install Dependencies
+      ansible.builtin.apt:
+        name:
+          - git
+          - cmake
+          - ninja-build
+          - gettext
+          - curl
+          - build-essential
+        state: latest
+      when: neovim_repository.changed
+
+    - name: Build Binary
+      ansible.builtin.command:
+        cmd: make
+        chdir: /opt/neovim
+      environment:
+        CMAKE_BUILD_TYPE: RelWithDebInfo
+      when: neovim_repository.changed
+      register: neovim_binary
+
+    - name: Install Binary
+      ansible.builtin.command:
+        cmd: make install
+        chdir: /opt/neovim
+      when: neovim_binary.changed

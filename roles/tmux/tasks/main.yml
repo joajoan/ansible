@@ -1,0 +1,48 @@
+- name: Install Software
+  become: yes
+  block:
+
+    - name: Pull Latest
+      ansible.builtin.git:
+        repo: https://github.com/tmux/tmux.git
+        dest: /opt/tmux
+        update: yes
+        version: master
+      register: tmux_repository
+
+    - name: Install Dependencies
+      ansible.builtin.apt:
+        name:
+          - autoconf
+          - automake
+          - bison
+          - libevent-dev
+          - libncurses-dev
+          - pkg-config
+        state: latest
+      when: tmux_repository.changed
+
+    - name: Setup Build Environment
+      ansible.builtin.shell:
+        cmd: sh autogen.sh
+        chdir: /opt/tmux
+      when: tmux_repository.changed
+
+    - name: Generating Build Configuration
+      ansible.builtin.shell:
+        cmd: ./configure
+        chdir: /opt/tmux
+      when: tmux_repository.changed
+
+    - name: Build Binary
+      ansible.builtin.command:
+        cmd: make
+        chdir: /opt/tmux
+      register: tmux_binary
+      when: tmux_repository.changed
+
+    - name: Install Binary
+      ansible.builtin.command:
+        cmd: make install
+        chdir: /opt/tmux
+      when: tmux_binary.changed

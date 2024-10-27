@@ -1,0 +1,9 @@
+- name: Install Packages
+  become: yes
+  ansible.builtin.apt:
+    name:
+      - curl
+      - git
+      - tree
+    update_cache: yes
+    state: latest

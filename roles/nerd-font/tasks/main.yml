@@ -1,0 +1,28 @@
+- name: Pull Latest Release
+  ansible.builtin.get_url:
+    url: https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
+    dest: /tmp/JetBrainsMono.zip
+  register: font_archive
+
+- name: Install Font
+  become: yes
+  when: font_archive.changed
+  block:
+
+    - name: Create Fonts Directory
+      ansible.builtin.file:
+        path: /usr/local/share/fonts/JetBrainsMono
+        state: directory
+        mode: '0755'
+
+    - name: Unarchive Font
+      ansible.builtin.unarchive:
+        src: /tmp/JetBrainsMono.zip
+        dest: /usr/local/share/fonts/JetBrainsMono
+        remote_src: yes
+      register: font_install
+
+    - name: Refresh Font Cache
+      ansible.builtin.command:
+        cmd: fc-cache -fv
+      when: font_install.changed

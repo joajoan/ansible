@@ -1,0 +1,93 @@
+- name: Install Software
+  become: yes
+  block:
+
+    - name: Pull Stable
+      ansible.builtin.git:
+        repo: 'https://github.com/alacritty/alacritty.git'
+        dest: /opt/alacritty
+        update: yes
+      register: alacritty_repository
+
+    - name: Update Dependencies
+      ansible.builtin.apt:
+        name:
+          - cargo
+          - cmake
+          - gzip
+          - pkg-config
+          - libfreetype6-dev
+          - libfontconfig1-dev
+          - libxcb-xfixes0-dev
+          - libxkbcommon-dev
+          - python3
+          - scdoc
+        state: latest
+        update_cache: yes
+      when: alacritty_repository.changed
+
+    - name: Build Binary
+      ansible.builtin.shell:
+        cmd: cargo build --release
+        chdir: /opt/alacritty
+        executable: /bin/bash
+      when: alacritty_repository.changed
+      register: alacritty_binary
+
+    - name: Install Binary
+      ansible.builtin.copy:
+        src: /opt/alacritty/target/release/alacritty
+        dest: /usr/local/bin
+        mode: 0755
+      when: alacritty_binary.changed
+
+- name: Create Desktop Icon
+  become: yes
+  when: alacritty_repository.changed
+  block:
+
+    - name: Install Desktop Entry
+      ansible.builtin.copy:
+        src: /opt/alacritty/extra/linux/Alacritty.desktop
+        dest: /usr/share/applications
+        mode: 0644
+
+    - name: Register Icon
+      ansible.builtin.copy:
+        src: /opt/alacritty/extra/logo/alacritty-simple.svg
+        dest: /usr/share/icons/hicolor/scalable/apps/Alacritty.svg
+        mode: 0644
+
+- name: Install Man Pages
+  vars:
+    man_location: /usr/local/share/man
+    man_pages:
+      - { section: "1", name: "alacritty" }
+      - { section: "5", name: "alacritty" }
+      - { section: "1", name: "alacritty-msg" }
+      - { section: "5", name: "alacritty-bindings" }
+  become: yes
+  when: alacritty_repository.changed
+  block:
+
+    - name: Ensure Man Page Directories Exist
+      ansible.builtin.file:
+        path: "{{ man_location }}/man{{ item }}"
+        state: directory
+        mode: '0755'
+      loop: "{{ man_pages | map(attribute='section') | unique | list }}"
+      loop_control:
+        label: "man{{ item }}"
+
+    - name: Install Man Pages
+      vars:
+        base_name: "{{ item.name }}.{{ item.section }}"
+        source_file: "{{ base_name }}.scd"
+        target_dir: "{{ man_location }}/man{{ item.section }}"
+        target_file: "{{ target_dir }}/{{ base_name }}.gz"
+      ansible.builtin.shell:
+        cmd: scdoc < {{ source_file }} | gzip -c > {{ target_file }}
+        chdir: /opt/alacritty/extra/man/
+      loop: "{{ man_pages }}"
+      loop_control:
+        label: "{{ target_file }}"
